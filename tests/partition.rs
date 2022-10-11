@@ -20,28 +20,28 @@ mod hello {
         // i.e. init custom logging
     }
 
-    // #[start(cold)]
-    // fn cold_start(ctx: cold::Context) {
-    //     ctx.warm_start();
-    // }
+    #[start(cold)]
+    fn cold_start(ctx: cold::Context) {
+        ctx.warm_start();
+    }
 
-    // #[start(warm)]
-    // fn warm_start(ctx: warm::Context) {
-    //     ctx.init_aperiodic2().unwrap();
-    //     ctx.init_aperiodic2().unwrap();
-    //     ctx.init_channel1().unwrap();
-    //     ctx.init_channel2().unwrap();
-    //     // Maybe we do not always want to initialize channel3
-    //     // ctx.init_channel3().unwrap();
-    // }
+    #[start(warm)]
+    fn warm_start(ctx: warm::Context) {
+        ctx.init_aperiodic2().unwrap();
+        ctx.init_aperiodic2().unwrap();
+        ctx.init_channel1().unwrap();
+        ctx.init_channel2().unwrap();
+        // Maybe we do not always want to initialize channel3
+        // ctx.init_channel3().unwrap();
+    }
 
-    // #[aperiodic(
-    //     time_capacity = Infinite,
-    //     stack_size = 10KB,
-    //     base_priority = 1,
-    //     deadline = Soft,
-    // )]
-    // fn aperiodic2(ctx: aperiodic2::Context) {}
+    #[aperiodic(
+        time_capacity = Infinite,
+        stack_size = 10KB,
+        base_priority = 1,
+        deadline = Soft,
+    )]
+    fn aperiodic2(ctx: aperiodic2::Context) {}
 
     // #[periodic(
     //     period = 10ms,

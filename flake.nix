@@ -20,6 +20,7 @@
               stable.cargo
               stable.clippy
               latest.rustfmt
+              # rust-analyzer
               targets.thumbv6m-none-eabi.stable.rust-std
             ];
         in
@@ -30,7 +31,6 @@
             packages = with pkgs; [
               clang
               rust-toolchain
-              rust-analyzer
               cargo-outdated
               cargo-udeps
               cargo-audit
@@ -38,6 +38,7 @@
               cargo-all-features
               cargo-watch
               nixpkgs-fmt
+              rust-analyzer
             ];
             git.hooks = {
               enable = true;

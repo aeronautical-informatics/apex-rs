@@ -9,6 +9,7 @@ use syn::{
 };
 
 use crate::channel::Channel;
+use crate::process::Process;
 use crate::start::Start;
 
 pub struct Partition {
@@ -22,7 +23,7 @@ pub struct Partition {
 
 impl Partition {
     fn from_mod(input: ItemMod) -> syn::Result<TokenStream> {
-        let (_, items) = input.content.unwrap();
+        let (_, items) = input.content.as_ref().unwrap();
         let (functions, structs): (Vec<_>, Vec<_>) = items
             .iter()
             .filter(|f| match f {
@@ -36,7 +37,9 @@ impl Partition {
                 _ => panic!(),
             });
         let channel = Channel::from_structs(&structs)?;
-        let start = Start::from_structs(&structs)?;
+        let start = Start::from_structs(&input, &functions)?;
+        panic!("{start:#?}");
+        let processes = Process::from_structs(&functions)?;
 
         todo!()
     }

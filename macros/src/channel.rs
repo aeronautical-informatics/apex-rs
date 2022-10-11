@@ -9,6 +9,8 @@ use strum::{Display, EnumDiscriminants, EnumIter, EnumString, IntoEnumIterator};
 // use strum::{Display, EnumString, EnumVariantNames, VariantNames};
 use syn::{spanned::Spanned, Attribute, Item, ItemStruct, Meta};
 
+use crate::util::{contains_attribute, MayFromAttributes};
+
 #[derive(Debug, Clone, PartialEq, EnumString)]
 pub enum QueuingDiscipline {
     FIFO,
@@ -46,18 +48,6 @@ impl FromMeta for WrappedDuration {
             Err(e) => Err(darling::Error::unsupported_shape(&e.to_string())),
         }
     }
-}
-
-fn contains_attribute(attr: &str, attrs: &[Attribute]) -> bool {
-    attrs
-        .iter()
-        .flat_map(|a| a.parse_meta())
-        .flat_map(|m| m.path().get_ident().cloned())
-        .any(|i| i.to_string().eq(attr))
-}
-
-trait MayFromAttributes: Sized {
-    fn may_from_attributes(attrs: &[Attribute]) -> Option<darling::Result<Self>>;
 }
 
 #[derive(Debug, Clone, FromAttributes)]
@@ -159,9 +149,9 @@ pub enum Channel {
 }
 
 impl Channel {
-    pub fn from_structs<'a>(items: &[ItemStruct]) -> syn::Result<HashMap<Ident, Channel>> {
+    pub fn from_structs<'a>(items: &[ItemStruct]) -> syn::Result<Vec<(Ident, Channel)>> {
         // let channel = SamplingOut::from_attributes(&a.attrs).unwrap();
-        let mut channel: HashMap<Ident, Channel> = HashMap::new();
+        let mut channel = vec![];
         for item in items {
             let mut vec: Vec<Option<darling::Result<Channel>>> = vec![
                 SamplingOut::may_from_attributes(&item.attrs).map(|x| x.map(Channel::from)),
@@ -182,7 +172,7 @@ impl Channel {
                     "Multiple Channels defined on same struct",
                 )),
             }?;
-            channel.insert(item.ident.clone(), ch);
+            channel.push((item.ident.clone(), ch));
         }
         Ok(channel)
     }
