@@ -1,15 +1,14 @@
-use std::collections::HashMap;
 use std::str::FromStr;
-use std::time::Duration;
 
-use bytesize::ByteSize;
-use darling::{FromAttributes, FromDeriveInput, FromMeta};
+use darling::{FromAttributes, FromMeta};
 use proc_macro2::Ident;
-use strum::{Display, EnumDiscriminants, EnumIter, EnumString, IntoEnumIterator};
+use strum::{Display, EnumDiscriminants, EnumIter, EnumString};
 // use strum::{Display, EnumString, EnumVariantNames, VariantNames};
-use syn::{spanned::Spanned, Attribute, Item, ItemStruct, Meta};
+use syn::{spanned::Spanned, Attribute, ItemStruct};
 
-use crate::util::{contains_attribute, MayFromAttributes};
+use crate::util::{
+    contains_attribute, remove_attributes, MayFromAttributes, WrappedByteSize, WrappedDuration,
+};
 
 #[derive(Debug, Clone, PartialEq, EnumString)]
 pub enum QueuingDiscipline {
@@ -19,34 +18,8 @@ pub enum QueuingDiscipline {
 
 impl FromMeta for QueuingDiscipline {
     fn from_string(value: &str) -> darling::Result<Self> {
-        match QueuingDiscipline::from_str(value) {
-            Ok(d) => Ok(d),
-            Err(e) => Err(darling::Error::unsupported_shape(&e.to_string())),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct WrappedByteSize(ByteSize);
-
-impl FromMeta for WrappedByteSize {
-    fn from_string(value: &str) -> darling::Result<Self> {
-        match ByteSize::from_str(value) {
-            Ok(s) => Ok(WrappedByteSize(s)),
-            Err(e) => Err(darling::Error::unsupported_shape(&e)),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct WrappedDuration(Duration);
-
-impl FromMeta for WrappedDuration {
-    fn from_string(value: &str) -> darling::Result<Self> {
-        match humantime::parse_duration(value) {
-            Ok(d) => Ok(WrappedDuration(d)),
-            Err(e) => Err(darling::Error::unsupported_shape(&e.to_string())),
-        }
+        QueuingDiscipline::from_str(value)
+            .map_err(|e| darling::Error::unsupported_shape(&e.to_string()))
     }
 }
 
@@ -57,11 +30,13 @@ pub struct SamplingOut {
 }
 
 impl MayFromAttributes for SamplingOut {
-    fn may_from_attributes(attrs: &[Attribute]) -> Option<darling::Result<Self>> {
+    fn may_from_attributes(attrs: &mut Vec<Attribute>) -> Option<darling::Result<Self>> {
         if !contains_attribute("sampling_out", attrs) {
             return None;
         }
-        Some(Self::from_attributes(attrs))
+        let port = Some(Self::from_attributes(attrs));
+        Some(remove_attributes("sampling_out", attrs))?.ok();
+        port
     }
 }
 
@@ -79,11 +54,13 @@ pub struct SamplingIn {
 }
 
 impl MayFromAttributes for SamplingIn {
-    fn may_from_attributes(attrs: &[Attribute]) -> Option<darling::Result<Self>> {
+    fn may_from_attributes(attrs: &mut Vec<Attribute>) -> Option<darling::Result<Self>> {
         if !contains_attribute("sampling_in", attrs) {
             return None;
         }
-        Some(Self::from_attributes(attrs))
+        let port = Some(Self::from_attributes(attrs));
+        Some(remove_attributes("sampling_in", attrs))?.ok();
+        port
     }
 }
 
@@ -102,11 +79,13 @@ pub struct QueuingOut {
 }
 
 impl MayFromAttributes for QueuingOut {
-    fn may_from_attributes(attrs: &[Attribute]) -> Option<darling::Result<Self>> {
+    fn may_from_attributes(attrs: &mut Vec<Attribute>) -> Option<darling::Result<Self>> {
         if !contains_attribute("queuing_out", attrs) {
             return None;
         }
-        Some(Self::from_attributes(attrs))
+        let port = Some(Self::from_attributes(attrs));
+        Some(remove_attributes("queuing_out", attrs))?.ok();
+        port
     }
 }
 
@@ -125,11 +104,13 @@ pub struct QueuingIn {
 }
 
 impl MayFromAttributes for QueuingIn {
-    fn may_from_attributes(attrs: &[Attribute]) -> Option<darling::Result<Self>> {
+    fn may_from_attributes(attrs: &mut Vec<Attribute>) -> Option<darling::Result<Self>> {
         if !contains_attribute("queuing_in", attrs) {
             return None;
         }
-        Some(Self::from_attributes(attrs))
+        let port = Some(Self::from_attributes(attrs));
+        Some(remove_attributes("queuing_in", attrs))?.ok();
+        port
     }
 }
 
@@ -149,15 +130,16 @@ pub enum Channel {
 }
 
 impl Channel {
-    pub fn from_structs<'a>(items: &[ItemStruct]) -> syn::Result<Vec<(Ident, Channel)>> {
+    pub fn from_structs<'a>(items: &mut [&mut ItemStruct]) -> syn::Result<Vec<(Ident, Channel)>> {
         // let channel = SamplingOut::from_attributes(&a.attrs).unwrap();
         let mut channel = vec![];
         for item in items {
+            // let item = *item;
             let mut vec: Vec<Option<darling::Result<Channel>>> = vec![
-                SamplingOut::may_from_attributes(&item.attrs).map(|x| x.map(Channel::from)),
-                SamplingIn::may_from_attributes(&item.attrs).map(|x| x.map(Channel::from)),
-                QueuingOut::may_from_attributes(&item.attrs).map(|x| x.map(Channel::from)),
-                QueuingIn::may_from_attributes(&item.attrs).map(|x| x.map(Channel::from)),
+                SamplingOut::may_from_attributes(&mut item.attrs).map(|x| x.map(Channel::from)),
+                SamplingIn::may_from_attributes(&mut item.attrs).map(|x| x.map(Channel::from)),
+                QueuingOut::may_from_attributes(&mut item.attrs).map(|x| x.map(Channel::from)),
+                QueuingIn::may_from_attributes(&mut item.attrs).map(|x| x.map(Channel::from)),
             ];
             let vec: Vec<_> = vec
                 .drain(..)
@@ -168,10 +150,11 @@ impl Channel {
                 0 => continue,
                 1 => Ok(vec[0].clone()?),
                 _ => Err(syn::Error::new_spanned(
-                    item,
+                    item.clone(),
                     "Multiple Channels defined on same struct",
                 )),
             }?;
+            // item.attrs
             channel.push((item.ident.clone(), ch));
         }
         Ok(channel)

@@ -1,6 +1,9 @@
-use darling::ToTokens;
-use syn::spanned::Spanned;
-use syn::{Attribute, FnArg, Signature};
+use std::str::FromStr;
+use std::time::Duration;
+
+use bytesize::ByteSize;
+use darling::{FromMeta, ToTokens};
+use syn::{parse_quote, Attribute, FnArg, Ident, ReturnType, Signature};
 
 pub fn contains_attribute(attr: &str, attrs: &[Attribute]) -> bool {
     attrs
@@ -11,17 +14,20 @@ pub fn contains_attribute(attr: &str, attrs: &[Attribute]) -> bool {
 }
 
 pub trait MayFromAttributes: Sized {
-    fn may_from_attributes(attrs: &[Attribute]) -> Option<darling::Result<Self>>;
+    fn may_from_attributes(attrs: &mut Vec<Attribute>) -> Option<darling::Result<Self>>;
 }
 
 ///
 /// Verify that no return type is specified in `output`  
 /// `ident` is used for the error message only, declaring that no output is allowed for `ident`
 pub fn no_return_type(ident: &str, output: &syn::ReturnType) -> syn::Result<()> {
-    // TODO make '-> ()' a valid function format
+    let empty: ReturnType = parse_quote! {-> ()};
+    if empty.eq(output) {
+        return Ok(());
+    }
     if let syn::ReturnType::Type(_, _) = output {
-        return Err(syn::Error::new(
-            output.span(),
+        return Err(syn::Error::new_spanned(
+            output.clone(),
             format!("{ident} outputs are not allowed"),
         ));
     }
@@ -55,4 +61,45 @@ pub fn single_function_argument(ty: &syn::Type, sig: &Signature) -> syn::Result<
         return Err(syn::Error::new(sig.paren_token.span, msg));
     }
     Ok(())
+}
+
+pub fn remove_attributes(attr: &str, attrs: &mut Vec<Attribute>) -> syn::Result<()> {
+    let attr = syn::parse_str::<Ident>(attr)?;
+    attrs.retain(|a| {
+        a.path
+            .segments
+            .first()
+            .map_or_else(|| true, |p| !p.ident.eq(&attr))
+    });
+    Ok(())
+}
+
+#[derive(Debug, Clone)]
+pub struct WrappedByteSize(ByteSize);
+
+impl From<WrappedByteSize> for ByteSize {
+    fn from(w: WrappedByteSize) -> Self {
+        w.0
+    }
+}
+
+impl FromMeta for WrappedByteSize {
+    fn from_string(value: &str) -> darling::Result<Self> {
+        match ByteSize::from_str(value) {
+            Ok(s) => Ok(WrappedByteSize(s)),
+            Err(e) => Err(darling::Error::unsupported_shape(&e)),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WrappedDuration(Duration);
+
+impl FromMeta for WrappedDuration {
+    fn from_string(value: &str) -> darling::Result<Self> {
+        match humantime::parse_duration(value) {
+            Ok(d) => Ok(WrappedDuration(d)),
+            Err(e) => Err(darling::Error::unsupported_shape(&e.to_string())),
+        }
+    }
 }

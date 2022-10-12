@@ -3,7 +3,7 @@ use apex_rs_macros::partition;
 mod deps;
 use deps::dummy::Dummy;
 
-#[partition(Dummy)]
+#[partition(deps::dummy::Dummy)]
 mod hello {
     #[sampling_out(msg_size = "10KB")]
     struct Channel1;
@@ -36,19 +36,19 @@ mod hello {
     }
 
     #[aperiodic(
-        time_capacity = Infinite,
-        stack_size = 10KB,
+        time_capacity = "Infinite",
+        stack_size = "10KB",
         base_priority = 1,
-        deadline = Soft,
+        deadline = "Soft"
     )]
     fn aperiodic2(ctx: aperiodic2::Context) {}
 
-    // #[periodic(
-    //     period = 10ms,
-    //     time_capacity = Infinite,
-    //     stack_size = 10KB,
-    //     base_priority = 1,
-    //     deadline = Soft,
-    // )]
-    // fn periodic3(ctx: periodic3::Context) {}
+    #[periodic(
+        period = "10ms",
+        time_capacity = "Infinite",
+        stack_size = "10KB",
+        base_priority = 1,
+        deadline = "Hard"
+    )]
+    fn periodic3(ctx: periodic3::Context) {}
 }

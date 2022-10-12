@@ -1,13 +1,11 @@
 use darling::util::Flag;
-use darling::{FromAttributes, ToTokens};
-use proc_macro2::{Ident, Span};
+use darling::FromAttributes;
+use proc_macro2::Span;
 use strum::AsRefStr;
-use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::token::Comma;
-use syn::{Attribute, FnArg, ItemFn, ItemMod, PatType, Signature};
+use syn::ItemFn;
 
-use crate::util::{contains_attribute, no_return_type, single_function_argument};
+use crate::util::{no_return_type, remove_attributes, single_function_argument};
 
 #[derive(Debug, Copy, Clone, AsRefStr)]
 enum StartType {
@@ -115,7 +113,7 @@ impl Start {
         Ok(self)
     }
 
-    pub fn from_structs<'a>(root: &ItemMod, items: &[ItemFn]) -> syn::Result<Start> {
+    pub fn from_structs<'a>(root: &Span, items: &mut [&mut ItemFn]) -> syn::Result<Start> {
         let mut pre: Option<ItemFn> = None;
         let mut warm: Option<ItemFn> = None;
         let mut cold: Option<ItemFn> = None;
@@ -127,6 +125,11 @@ impl Start {
             } else {
                 continue;
             };
+
+            // Remove start attributes from item //
+            remove_attributes("start", &mut item.attrs)?;
+            // Remove start attributes from item //
+
             let leftover = match start {
                 StartType::Pre(_) => pre.replace(item.clone()),
                 StartType::Warm(_) => warm.replace(item.clone()),

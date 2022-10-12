@@ -1,54 +1,68 @@
-use std::collections::HashMap;
-
-use darling::FromAttributes;
+use darling::ToTokens;
 use itertools::{Either, Itertools};
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::quote;
+use syn::spanned::Spanned;
 use syn::{
-    Attribute, Data, DataStruct, DeriveInput, Fields, Ident, ItemMod, Lit, Meta, NestedMeta,
+    Attribute, Data, DataStruct, DeriveInput, Fields, Ident, ItemFn, ItemMod, Lit, Meta,
+    NestedMeta, TypePath,
 };
 
 use crate::channel::Channel;
-use crate::process::Process;
+use crate::process::{Aperiodic, Periodic, Process};
 use crate::start::Start;
 
+#[derive(Debug, Clone)]
 pub struct Partition {
-    channel: HashMap<Ident, Channel>,
-    pre_start: Option<i32>,
-    cold_start: i32,
-    warm_start: i32,
-    aperiodic: Vec<i32>,
-    periodic: Vec<i32>,
+    channel: Vec<(Ident, Channel)>,
+    pre_start: Option<ItemFn>,
+    cold_start: ItemFn,
+    warm_start: ItemFn,
+    aperiodic: Vec<(ItemFn, Aperiodic)>,
+    periodic: Vec<(ItemFn, Periodic)>,
 }
 
 impl Partition {
-    fn from_mod(input: ItemMod) -> syn::Result<TokenStream> {
-        let (_, items) = input.content.as_ref().unwrap();
-        let (functions, structs): (Vec<_>, Vec<_>) = items
-            .iter()
+    fn from_mod(input: &mut ItemMod) -> syn::Result<Partition> {
+        let root_span = input.span().clone();
+        let (_, items) = input.content.as_mut().unwrap();
+        let (mut functions, mut structs): (Vec<_>, Vec<_>) = items
+            .iter_mut()
             .filter(|f| match f {
                 syn::Item::Fn(_) => true,
                 syn::Item::Struct(_) => true,
                 _ => false,
             })
             .partition_map(|p| match p {
-                syn::Item::Fn(f) => Either::Left(f.clone()),
-                syn::Item::Struct(s) => Either::Right(s.clone()),
+                syn::Item::Fn(f) => Either::Left(f),
+                syn::Item::Struct(s) => Either::Right(s),
                 _ => panic!(),
             });
-        let channel = Channel::from_structs(&structs)?;
-        let start = Start::from_structs(&input, &functions)?;
-        panic!("{start:#?}");
-        let processes = Process::from_structs(&functions)?;
+        let channel = Channel::from_structs(&mut structs)?;
+        let start = Start::from_structs(&root_span, &mut functions)?;
+        let mut processes = Process::from_structs(&mut functions)?;
+        let (ap, a) = processes.drain(..).partition_map(|(f, p)| match p {
+            Process::Aperiodic(ap) => Either::Left((f, ap)),
+            Process::Periodic(p) => Either::Right((f, p)),
+        });
 
-        todo!()
+        Ok(Partition {
+            channel,
+            pre_start: start.pre().cloned(),
+            cold_start: start.cold().clone(),
+            warm_start: start.warm().clone(),
+            aperiodic: ap,
+            periodic: a,
+        })
     }
 }
 
-pub fn expand_partition(input: ItemMod, hypervisor: Ident) -> syn::Result<TokenStream> {
-    let mut token_stream = TokenStream::new();
+pub fn expand_partition(mut input: ItemMod, hypervisor: TypePath) -> syn::Result<TokenStream> {
     // let partition_name = input.ident;
-    let part = Partition::from_mod(input)?;
+    let part = Partition::from_mod(&mut input)?;
+    let mut token_stream = input.to_token_stream();
+
+    // panic!("{part:#?}");
 
     token_stream.extend(quote! {});
     Ok(token_stream)
