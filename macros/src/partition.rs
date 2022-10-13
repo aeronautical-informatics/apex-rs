@@ -1,29 +1,30 @@
-use darling::ToTokens;
 use itertools::{Either, Itertools};
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 use syn::{
-    Attribute, Data, DataStruct, DeriveInput, Fields, Ident, ItemFn, ItemMod, Lit, Meta,
-    NestedMeta, TypePath,
+    Attribute, Data, DataStruct, DeriveInput, Fields, Ident, Item, ItemFn, ItemMod, Lit, Meta,
+    NestedMeta, Path, TypePath,
 };
 
-use crate::channel::Channel;
-use crate::process::{Aperiodic, Periodic, Process};
-use crate::start::Start;
+use crate::generate::process::proc_contexts_from_partition;
+use crate::generate::start::start_context_from_partition;
+use crate::parse::channel::Channel;
+use crate::parse::process::{Aperiodic, Periodic, Process};
+use crate::parse::start::Start;
 
 #[derive(Debug, Clone)]
 pub struct Partition {
-    channel: Vec<(Ident, Channel)>,
-    pre_start: Option<ItemFn>,
-    cold_start: ItemFn,
-    warm_start: ItemFn,
-    aperiodic: Vec<(ItemFn, Aperiodic)>,
-    periodic: Vec<(ItemFn, Periodic)>,
+    pub hypervisor: TypePath,
+    pub channel: Vec<(Ident, Channel)>,
+    pub pre_start: Option<ItemFn>,
+    pub cold_start: ItemFn,
+    pub warm_start: ItemFn,
+    pub processes: Vec<(ItemFn, Process)>,
 }
 
 impl Partition {
-    fn from_mod(input: &mut ItemMod) -> syn::Result<Partition> {
+    fn from_mod(hyp: TypePath, input: &mut ItemMod) -> syn::Result<Partition> {
         let root_span = input.span().clone();
         let (_, items) = input.content.as_mut().unwrap();
         let (mut functions, mut structs): (Vec<_>, Vec<_>) = items
@@ -40,31 +41,28 @@ impl Partition {
             });
         let channel = Channel::from_structs(&mut structs)?;
         let start = Start::from_structs(&root_span, &mut functions)?;
-        let mut processes = Process::from_structs(&mut functions)?;
-        let (ap, a) = processes.drain(..).partition_map(|(f, p)| match p {
-            Process::Aperiodic(ap) => Either::Left((f, ap)),
-            Process::Periodic(p) => Either::Right((f, p)),
-        });
+        let processes = Process::from_structs(&mut functions)?;
 
         Ok(Partition {
+            hypervisor: hyp,
             channel,
             pre_start: start.pre().cloned(),
             cold_start: start.cold().clone(),
             warm_start: start.warm().clone(),
-            aperiodic: ap,
-            periodic: a,
+            processes,
         })
     }
 }
 
 pub fn expand_partition(mut input: ItemMod, hypervisor: TypePath) -> syn::Result<TokenStream> {
     // let partition_name = input.ident;
-    let part = Partition::from_mod(&mut input)?;
-    let mut token_stream = input.to_token_stream();
+    let part = Partition::from_mod(hypervisor, &mut input)?;
+    let content: &mut Vec<Item> = &mut input.content.as_mut().unwrap().1;
 
-    // panic!("{part:#?}");
+    content.push(start_context_from_partition(&part));
+    content.extend(proc_contexts_from_partition(&part));
 
-    token_stream.extend(quote! {});
+    let token_stream = input.to_token_stream();
     Ok(token_stream)
 }
 

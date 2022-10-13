@@ -5,7 +5,7 @@ use strum::AsRefStr;
 use syn::spanned::Spanned;
 use syn::ItemFn;
 
-use crate::util::{no_return_type, remove_attributes, single_function_argument};
+use crate::parse::util::{no_return_type, remove_attributes, single_function_argument};
 
 #[derive(Debug, Copy, Clone, AsRefStr)]
 enum StartType {
@@ -99,13 +99,13 @@ impl Start {
         }
 
         single_function_argument(
-            &syn::Type::Path(syn::parse_str("warm::Context").unwrap()),
+            &syn::Type::Path(syn::parse_str("start::Context").unwrap()),
             &self.warm.sig,
         )?;
         no_return_type("WarmStart", &self.warm.sig.output)?;
 
         single_function_argument(
-            &syn::Type::Path(syn::parse_str("cold::Context").unwrap()),
+            &syn::Type::Path(syn::parse_str("start::Context").unwrap()),
             &self.cold.sig,
         )?;
         no_return_type("ColdStart", &self.cold.sig.output)?;

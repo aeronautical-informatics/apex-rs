@@ -21,16 +21,17 @@ mod hello {
     }
 
     #[start(cold)]
-    fn cold_start(ctx: cold::Context) {
-        ctx.warm_start();
+    fn cold_start(ctx: start::Context) {
+        warm_start(ctx);
     }
 
     #[start(warm)]
-    fn warm_start(ctx: warm::Context) {
+    fn warm_start(ctx: start::Context) {
         ctx.init_aperiodic2().unwrap();
-        ctx.init_aperiodic2().unwrap();
-        ctx.init_channel1().unwrap();
-        ctx.init_channel2().unwrap();
+        // ctx.init_periodic3().unwrap();
+        // ctx.init_channel1().unwrap();
+        // ctx.init_channel2().unwrap();
+
         // Maybe we do not always want to initialize channel3
         // ctx.init_channel3().unwrap();
     }

@@ -1,12 +1,13 @@
 use std::str::FromStr;
 use std::string::ToString;
 
+use bytesize::ByteSize;
 use darling::{FromAttributes, FromMeta};
 use strum::{Display, EnumString};
 use syn::spanned::Spanned;
 use syn::{Attribute, ItemFn};
 
-use crate::util::{
+use crate::parse::util::{
     contains_attribute, no_return_type, remove_attributes, single_function_argument,
     MayFromAttributes, WrappedByteSize, WrappedDuration,
 };
@@ -68,7 +69,13 @@ impl MayFromAttributes for Aperiodic {
 
 impl From<Aperiodic> for Process {
     fn from(a: Aperiodic) -> Self {
-        Process::Aperiodic(a)
+        Process {
+            time_capacity: a.time_capacity,
+            period: ApexTime::Infinite,
+            stack_size: a.stack_size.into(),
+            base_priority: a.base_priority,
+            deadline: a.deadline,
+        }
     }
 }
 
@@ -95,14 +102,23 @@ impl MayFromAttributes for Periodic {
 
 impl From<Periodic> for Process {
     fn from(p: Periodic) -> Self {
-        Process::Periodic(p)
+        Process {
+            time_capacity: p.time_capacity,
+            period: ApexTime::Normal(p.period.into()),
+            stack_size: p.stack_size.into(),
+            base_priority: p.base_priority,
+            deadline: p.deadline,
+        }
     }
 }
 
-#[derive(Debug, Clone, Display)]
-pub enum Process {
-    Aperiodic(Aperiodic),
-    Periodic(Periodic),
+#[derive(Debug, Clone)]
+pub struct Process {
+    time_capacity: ApexTime,
+    period: ApexTime,
+    stack_size: ByteSize,
+    base_priority: usize,
+    deadline: Deadline,
 }
 
 impl Process {
