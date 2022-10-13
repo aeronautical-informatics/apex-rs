@@ -6,15 +6,21 @@ use crate::parse::process::{Aperiodic, Periodic};
 use crate::partition::Partition;
 
 pub fn start_context_from_partition(part: &Partition) -> Item {
+    let hyp_path = &part.hypervisor;
     let inits = init_process_fns(part);
 
     parse_quote! {
         mod start {
-            pub(crate) struct Context{
+            pub type Context = ContextInner< #hyp_path >;
 
+            pub struct ContextInner<Hypervisor: apex_rs::bindings::ApexPartitionP4> {
+                _p: core::marker::PhantomData<Hypervisor>,
             }
 
-            impl Context{
+            impl<Hypervisor:
+                apex_rs::bindings::ApexPartitionP4 +
+                apex_rs::bindings::ApexProcessP4,
+            > ContextInner<Hypervisor>{
                 #(#inits)*
             }
         }

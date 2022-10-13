@@ -3,7 +3,7 @@ use apex_rs_macros::partition;
 mod deps;
 use deps::dummy::Dummy;
 
-#[partition(deps::dummy::Dummy)]
+#[partition(crate::deps::dummy::Dummy)]
 mod hello {
     #[sampling_out(msg_size = "10KB")]
     struct Channel1;
@@ -28,6 +28,7 @@ mod hello {
     #[start(warm)]
     fn warm_start(ctx: start::Context) {
         ctx.init_aperiodic2().unwrap();
+        ctx.init_periodic3().unwrap();
         // ctx.init_periodic3().unwrap();
         // ctx.init_channel1().unwrap();
         // ctx.init_channel2().unwrap();
